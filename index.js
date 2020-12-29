@@ -1,5 +1,6 @@
-import { enQueue, status, defer, pipe } from './util/index.js';
+import { enQueue, status, defer, pipe, length } from './util/index.js';
 import {
+  pick,
   resolveAll,
   UncaughtPromiseError,
   _consume,
@@ -14,32 +15,35 @@ function settle(action, changeState, promise, subscriptions) {
   };
 }
 
-function onFulfill(subscriptions, v) {
-  subscriptions.forEach(function settleFulfil([
-    [subscriber],
-    resolve,
-    reject,
-    isPromiseCatchInstance,
-  ]) {
+function onFulfill(subscriptions, value) {
+  const caseConditions = [0, [1, true], [2, false, true]];
+  function settleFulfil([[subscriber, promiseType], resolve, reject]) {
     try {
-      resolve(isPromiseCatchInstance ? v : subscriber(v));
+      pick(resolve, value, promiseType, caseConditions, subscriber);
     } catch (e) {
       reject(e);
     }
-  });
+  }
+  subscriptions.forEach(settleFulfil);
 }
 
-function onReject(subscriptions, errMsg) {
-  if (subscriptions.length) {
+function onReject(subscriptions, reason) {
+  const caseConditions = [[0, true], 1, [2, false, true]];
+  if (length(subscriptions)) {
     subscriptions.forEach(function settleReject([
-      [fn, caughtPromise],
+      [fn, promiseType],
       ,
       reject,
+      isCatchInstance,
     ]) {
-      (caughtPromise ? fn : reject)(errMsg);
+      if (isCatchInstance) {
+        fn(reason);
+      } else {
+        pick(reject, reason, promiseType, caseConditions, fn);
+      }
     });
   } else {
-    throw new UncaughtPromiseError(errMsg.message || errMsg);
+    throw new UncaughtPromiseError(reason.message ? reason.message : reason);
   }
 }
 
@@ -52,26 +56,39 @@ export class Promise {
 
     const setState = defer((type) => (currentState = type));
 
-    const resolve = enQueue(
-      settle(onFulfill, setState('fulfilled'), this, subscriptions)
+    const resolve = settle(
+      enQueue(onFulfill),
+      setState('fulfilled'),
+      this,
+      subscriptions
     );
-    const reject = enQueue(
-      settle(onReject, setState('rejected'), this, subscriptions)
+
+    const reject = settle(
+      enQueue(onReject),
+      setState('rejected'),
+      this,
+      subscriptions
     );
 
     function _then(cb) {
       return new Promise((resolve, reject) => {
-        subscriptions.push([[cb], resolve, reject]);
+        subscriptions.push([[cb, 0], resolve, reject]);
       });
     }
 
     function _catch(cb) {
       return new Promise((resolve, reject) => {
-        subscriptions.push([[cb, true], resolve, reject, true]);
+        subscriptions.push([[cb, 1], resolve, reject, true]);
       });
     }
 
-    instanceMethods.set(this, [_then, _catch]);
+    function _finally(cb) {
+      return new Promise((resolve, reject) => {
+        subscriptions.push([[cb, 2], resolve, reject]);
+      });
+    }
+
+    instanceMethods.set(this, [_then, _catch, _finally]);
 
     Object.defineProperty(this, 'state', {
       get() {
@@ -94,6 +111,10 @@ export class Promise {
     return instanceMethods.get(this)[1](cb);
   }
 
+  finally(cb) {
+    return instanceMethods.get(this)[2](cb);
+  }
+
   static resolve(v) {
     return 'then' in Object(v) ? v : new Promise((res) => res(v));
   }
@@ -111,7 +132,11 @@ export class Promise {
 
     function resolveConditioner(checker, [allFulfilled, states], res, result) {
       const someFailed = states.some((v) => v === false);
-      allFulfilled ? res(result) : !someFailed ? checker(res) : null;
+      if (allFulfilled) {
+        res(result);
+      } else if (!someFailed) {
+        checker(res);
+      }
     }
     return resolveAll(promiseIterable)(storeSettleResult, resolveConditioner);
   }

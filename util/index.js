@@ -10,6 +10,8 @@ export const isUndefined = (val) => val == null;
 export const length = prop('length');
 export const not = (fn) => (v) => !fn(v);
 export const removeEmpty = (list) => list.filter(not(isUndefined));
+export const sameIds = (fixedID) => (list) =>
+  list.filter(([[, id]]) => id === fixedID);
 
 //pipe :: Function -> Function
 export function pipe(...fns) {
@@ -25,8 +27,8 @@ export function pipe(...fns) {
 }
 
 export function enQueue(fn) {
-  return function now(v) {
-    setTimeout(fn, 0, v);
+  return function now(...v) {
+    setTimeout(fn, 0, ...v);
   };
 }
 
