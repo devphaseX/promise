@@ -29,6 +29,8 @@ export const _consume = (promise) => {
   };
 };
 
+const getSettleLengths = pipe(removeEmpty, length);
+
 export function resolveAll(promiseIterable) {
   return resolver;
   function resolver(getSettler, resolveCondition) {
@@ -40,7 +42,7 @@ export function resolveAll(promiseIterable) {
 
       const processResolve = enQueue(function cycle() {
         const stateValues = states.map(prop('status'));
-        const isAllSettled = pipe(removeEmpty, length) === stateLengths;
+        const isAllSettled = getSettleLengths(stateValues) === stateLengths;
 
         resolveCondition(
           processResolve,
