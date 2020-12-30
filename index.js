@@ -32,15 +32,12 @@ function onReject(subscriptions, reason) {
   if (length(subscriptions)) {
     subscriptions.forEach(function settleReject([
       [fn, promiseType],
-      ,
+      resolve,
       reject,
       isCatchInstance,
     ]) {
-      if (isCatchInstance) {
-        fn(reason);
-      } else {
-        pick(reject, reason, promiseType, caseConditions, fn);
-      }
+      const resolveType = isCatchInstance ? resolve : reject;
+      pick(resolveType, reason, promiseType, caseConditions, fn);
     });
   } else {
     throw new UncaughtPromiseError(reason.message ? reason.message : reason);
