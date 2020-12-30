@@ -2,10 +2,7 @@ import { length, removeEmpty, pipe, enQueue, prop } from '../util/index.js';
 import { Promise } from '../index.js';
 
 export class UncaughtPromiseError extends Error {
-  constructor(msg) {
-    super(msg);
-    super.name = '(in promise)';
-  }
+  name = '(in promise)';
 }
 
 export const _consume = (promise) => {

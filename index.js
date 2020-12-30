@@ -45,8 +45,7 @@ function onReject(subscriptions, reason) {
 }
 
 const instanceMethods = new WeakMap();
-
-export class Promise {
+export default class Promise {
   constructor(executor) {
     let subscriptions = [];
     let currentState = 'pending';
@@ -121,25 +120,25 @@ export class Promise {
   }
 
   static all(promiseIterable) {
-    function storeSettleResult(result, _, rej) {
+    function insert(result, _, rej) {
       return function (promiser, i) {
         return promiser((v) => (result[i] = v), rej);
       };
     }
 
-    function resolveConditioner(checker, [allFulfilled, states], res, result) {
-      const someFailed = states.some((v) => v === false);
-      if (allFulfilled) {
-        res(result);
-      } else if (!someFailed) {
-        checker(res);
+    function attemptResolve(_try, [isFulfil, states], resolve, result) {
+      const complete = states.some((v) => v === false);
+      if (isFulfil) {
+        resolve(result);
+      } else if (!complete) {
+        _try(resolve);
       }
     }
-    return resolveAll(promiseIterable)(storeSettleResult, resolveConditioner);
+    return resolveAll(promiseIterable)(insert, attemptResolve);
   }
 
   static allSettled(promises) {
-    function storeSettleResult(result) {
+    function insert(result) {
       return function (promiser, i) {
         return promiser(
           (v) => (result[i] = status('fulfilled', 'value', v)),
@@ -147,10 +146,10 @@ export class Promise {
         );
       };
     }
-    function resolveConditioner(checker, [allFulfilled], resolve, result) {
+    function attemptResolve(checker, [allFulfilled], resolve, result) {
       allFulfilled ? resolve(result) : checker(resolve);
     }
-    return resolveAll(promises)(storeSettleResult, resolveConditioner);
+    return resolveAll(promises)(insert, attemptResolve);
   }
 
   static race(promises) {
@@ -160,3 +159,5 @@ export class Promise {
     });
   }
 }
+
+export { Promise };
