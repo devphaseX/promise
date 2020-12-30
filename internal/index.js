@@ -8,16 +8,15 @@ export class UncaughtPromiseError extends Error {
 export const _consume = (promise) => {
   let status = null;
   return (res, rej) => {
-    promise
-      .then(function complete(val) {
-        res(val);
-        status = true;
-      })
+    promise.then(function complete(val) {
+      res(val);
+      status = true;
+    });
 
-      .catch(function terminate(errMsg) {
-        rej(errMsg);
-        status = false;
-      });
+    promise.catch(function terminate(errMsg) {
+      rej(errMsg);
+      status = false;
+    });
 
     return {
       get status() {

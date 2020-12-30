@@ -35,19 +35,19 @@ function onFulfill(subscriptions, value) {
 }
 
 function onReject(subscriptions, reason) {
-  const caseConditions = [[0, true], 1, [2, false, true]];
+  const caseConditions = [1, [2, false, true]];
   if (length(subscriptions)) {
-    subscriptions.forEach(function settleReject([
-      [fn, promiseType],
-      resolve,
-      reject,
-      isCatchInstance,
-    ]) {
-      const resolveType = isCatchInstance ? resolve : reject;
-      pick(resolveType, reason, promiseType, caseConditions, fn);
-    });
+    const passedSubscription = subscriptions.filter(([[, subType]]) =>
+      [1, 2].includes(subType)
+    );
+    passedSubscription.forEach(settleReject);
   } else {
     throw new UncaughtPromiseError(reason);
+  }
+
+  function settleReject([[fn, type], resolve, reject, isCatchInstance]) {
+    const resolveType = isCatchInstance ? resolve : reject;
+    pick(resolveType, reason, type, caseConditions, fn);
   }
 }
 
@@ -74,22 +74,14 @@ export default class Promise {
     );
 
     function _then(...cbs) {
-      cbs = cbs.slice(0, 2);
-      switch (cbs.length) {
-        case 1:
-          return new Promise((resolve, reject) => {
-            subscriptions.push([[cbs[0], 0], resolve, reject, true]);
-          });
-        case 2:
-          const internal = new Promise((resolve, reject) => {
-            subscriptions.push([[identity, 0], resolve, reject]);
-          });
-          return cbs.reduce(
-            (p, cb, i) => (!cb ? p : p[i === 0 ? 'then' : 'catch'](cb)),
-            internal,
-            this
-          );
-      }
+      cbs = [...cbs.slice(0, 2).entries()];
+      return new Promise((resolve, reject) => {
+        const cbTasks = cbs.map(cbTask).filter(Boolean);
+        subscriptions.push(...cbTasks);
+        function cbTask([i, cb]) {
+          return cb ? [[cb, i], resolve, reject, Boolean(i)] : null;
+        }
+      });
     }
 
     function _catch(cb) {
