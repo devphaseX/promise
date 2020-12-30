@@ -13,6 +13,8 @@ export const removeEmpty = (list) => list.filter(not(isUndefined));
 export const sameIds = (fixedID) => (list) =>
   list.filter(([[, id]]) => id === fixedID);
 
+export const identity = (v) => v;
+
 //pipe :: Function -> Function
 export function pipe(...fns) {
   return function piped(result) {

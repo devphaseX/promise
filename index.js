@@ -1,4 +1,11 @@
-import { enQueue, status, defer, pipe, length } from './util/index.js';
+import {
+  enQueue,
+  status,
+  defer,
+  pipe,
+  length,
+  identity,
+} from './util/index.js';
 import {
   pick,
   resolveAll,
@@ -40,7 +47,7 @@ function onReject(subscriptions, reason) {
       pick(resolveType, reason, promiseType, caseConditions, fn);
     });
   } else {
-    throw new UncaughtPromiseError(reason.message ? reason.message : reason);
+    throw new UncaughtPromiseError(reason);
   }
 }
 
@@ -66,10 +73,23 @@ export default class Promise {
       subscriptions
     );
 
-    function _then(cb) {
-      return new Promise((resolve, reject) => {
-        subscriptions.push([[cb, 0], resolve, reject]);
-      });
+    function _then(...cbs) {
+      cbs = cbs.slice(0, 2);
+      switch (cbs.length) {
+        case 1:
+          return new Promise((resolve, reject) => {
+            subscriptions.push([[cbs[0], 0], resolve, reject, true]);
+          });
+        case 2:
+          const internal = new Promise((resolve, reject) => {
+            subscriptions.push([[identity, 0], resolve, reject]);
+          });
+          return cbs.reduce(
+            (p, cb, i) => (!cb ? p : p[i === 0 ? 'then' : 'catch'](cb)),
+            internal,
+            this
+          );
+      }
     }
 
     function _catch(cb) {
@@ -99,8 +119,8 @@ export default class Promise {
     }
   }
 
-  then(cb) {
-    return instanceMethods.get(this)[0](cb);
+  then(...cbs) {
+    return instanceMethods.get(this)[0](...cbs);
   }
 
   catch(cb) {
