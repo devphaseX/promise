@@ -41,3 +41,13 @@ export function defer(fn) {
     };
   };
 }
+
+export function selectArray(position, size) {
+  return function select(multiArray) {
+    if (multiArray.length === size) {
+      return multiArray[position];
+    } else {
+      return multiArray;
+    }
+  };
+}

@@ -1,4 +1,11 @@
-import { length, removeEmpty, pipe, enQueue, prop } from '../util/index.js';
+import {
+  length,
+  removeEmpty,
+  pipe,
+  enQueue,
+  prop,
+  identity,
+} from '../util/index.js';
 import { Promise } from '../index.js';
 
 export class UncaughtPromiseError extends Error {
@@ -8,15 +15,15 @@ export class UncaughtPromiseError extends Error {
 export const _consume = (promise) => {
   let status = null;
   return (res, rej) => {
-    promise.then(function complete(val) {
-      res(val);
-      status = true;
-    });
-
-    promise.catch(function terminate(errMsg) {
-      rej(errMsg);
-      status = false;
-    });
+    promise.then(
+      function complete(val) {
+        res(val);
+        status = true;
+      },
+      function terminate(errMsg) {
+        rej(errMsg);
+      }
+    );
 
     return {
       get status() {
@@ -48,7 +55,6 @@ export function resolveAll(promiseIterable) {
           result
         );
       });
-
       processResolve();
     });
   }

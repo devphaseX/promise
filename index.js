@@ -4,7 +4,7 @@ import {
   defer,
   pipe,
   length,
-  identity,
+  selectArray,
 } from './util/index.js';
 import {
   pick,
@@ -25,28 +25,28 @@ function settle(action, changeState, promise, subscriptions) {
 function onFulfill(subscriptions, value) {
   const caseConditions = [0, [1, true], [2, false, true]];
   function settleFulfil([[subscriber, promiseType], resolve, reject]) {
+    subscriber = Array.isArray(subscriber) ? subscriber[0] : subscriber;
     try {
       pick(resolve, value, promiseType, caseConditions, subscriber);
     } catch (e) {
       reject(e);
     }
   }
-  subscriptions.forEach(settleFulfil);
+
+  subscriptions.map(selectArray(0, 2)).forEach(settleFulfil);
 }
 
 function onReject(subscriptions, reason) {
-  const caseConditions = [1, [2, false, true]];
+  const caseConditions = [[0, true], 1, [2, false, true]];
   if (length(subscriptions)) {
-    const passedSubscription = subscriptions.filter(([[, subType]]) =>
-      [1, 2].includes(subType)
-    );
-    passedSubscription.forEach(settleReject);
+    subscriptions.map(selectArray(1, 2)).forEach(settleReject);
   } else {
     throw new UncaughtPromiseError(reason);
   }
 
   function settleReject([[fn, type], resolve, reject, isCatchInstance]) {
-    const resolveType = isCatchInstance ? resolve : reject;
+    fn = Array.isArray(fn) ? fn[1] : fn;
+    const resolveType = isCatchInstance && type !== 0 ? resolve : reject;
     pick(resolveType, reason, type, caseConditions, fn);
   }
 }
@@ -77,7 +77,7 @@ export default class Promise {
       cbs = [...cbs.slice(0, 2).entries()];
       return new Promise((resolve, reject) => {
         const cbTasks = cbs.map(cbTask).filter(Boolean);
-        subscriptions.push(...cbTasks);
+        subscriptions.push(cbTasks.length === 1 ? cbTasks[0] : cbTasks);
         function cbTask([i, cb]) {
           return cb ? [[cb, i], resolve, reject, Boolean(i)] : null;
         }
@@ -92,7 +92,7 @@ export default class Promise {
 
     function _finally(cb) {
       return new Promise((resolve, reject) => {
-        subscriptions.push([[cb, 2], resolve, reject]);
+        subscriptions.push([[enQueue(cb), 2], resolve, reject]);
       });
     }
 
@@ -138,7 +138,7 @@ export default class Promise {
       };
     }
 
-    function attemptResolve(_try, [isFulfil, states], resolve, result) {
+    function trial(_try, [isFulfil, states], resolve, result) {
       const complete = states.some((v) => v === false);
       if (isFulfil) {
         resolve(result);
@@ -146,7 +146,7 @@ export default class Promise {
         _try(resolve);
       }
     }
-    return resolveAll(promiseIterable)(insert, attemptResolve);
+    return resolveAll(promiseIterable)(insert, trial);
   }
 
   static allSettled(promises) {
@@ -158,10 +158,10 @@ export default class Promise {
         );
       };
     }
-    function attemptResolve(checker, [allFulfilled], resolve, result) {
+    function attempt(checker, [allFulfilled], resolve, result) {
       allFulfilled ? resolve(result) : checker(resolve);
     }
-    return resolveAll(promises)(insert, attemptResolve);
+    return resolveAll(promises)(insert, attempt);
   }
 
   static race(promises) {
